@@ -1,9 +1,10 @@
-from groq import OpenAI
+# src/services/llm_service.py
+import groq
+from src.config import Config
 
 class LLMService:
     def __init__(self):
-        self.client = OpenAI(
-            base_url="https://api.groq.com/openai/v1",
+        self.client = groq.Groq(
             api_key=Config.GROQ_API_KEY
         )
     
@@ -11,11 +12,14 @@ class LLMService:
         system_prompt = """You are an expert at providing answers about stocks. 
         Please analyze the following query and extract relevant search criteria."""
         
-        response = await self.client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ]
-        )
-        return response.choices[0].message.content
+        try:
+            response = await self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": query}
+                ],
+                model="mixtral-8x7b-32768"
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error processing query: {str(e)}"

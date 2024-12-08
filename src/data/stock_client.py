@@ -1,5 +1,7 @@
+# src/data/stock_client.py
 import yfinance as yf
 import pandas as pd
+from src.config import Config
 
 class StockClient:
     def __init__(self):
