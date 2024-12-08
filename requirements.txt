@@ -1,0 +1,8 @@
+python-dotenv==1.0.0
+fastapi==0.104.0
+uvicorn==0.23.2
+pandas==2.1.1
+yfinance==0.2.31
+groq==0.4.0
+sqlalchemy==2.0.22
+pytest==7.4.2
