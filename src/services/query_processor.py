@@ -5,7 +5,7 @@ from src.data.stock_client import StockClient
 from typing import Dict, List, Any, Optional
 import json
 import logging
-
+import re
 logger = logging.getLogger(__name__)
 
 class StockInfo:
@@ -54,75 +54,69 @@ class QueryProcessor:
         }
 
     async def process_query(self, query: str) -> Dict[str, Any]:
-        """Process natural language query and return relevant stock information"""
+        """Process natural language query and return relevant stock information."""
         try:
             logger.info(f"Processing query: {query}")
-            
-            # Check if it's a direct stock symbol query
+
+            # Handle direct stock symbol queries
             query_upper = query.strip().upper()
             if query_upper in self.stock_universe:
-                # Single stock analysis path
                 stock_data = await self.stock_client.get_stock_details(query_upper)
                 if "error" not in stock_data:
-                    # Add static info
                     stock_info = self.stock_universe[query_upper]
                     stock_data.update({
                         "name": stock_info.name,
                         "sector": stock_info.sector,
-                        "industry": stock_info.industry
+                        "industry": stock_info.industry,
                     })
-                    # Add analysis
                     analyzed_stock = await self._analyze_stock(stock_data)
                     return {
                         "query": query,
                         "interpreted_as": f"Detailed analysis of {query_upper}",
                         "results_count": 1,
-                        "results": [analyzed_stock]
+                        "results": [analyzed_stock],
                     }
-            
-            # General query path
+
+            # Parse the query into structured data
             parsed_query = await self._parse_query(query)
             logger.debug(f"Parsed query: {parsed_query}")
-            
+
+            # Fetch stock data from static and live sources
             results = await self._fetch_stock_data()
-            
+
             if not results:
+                logger.warning("No stock data available at the moment.")
                 return {
                     "query": query,
-                    "error": "No stock data available at the moment",
-                    "results": []
+                    "error": "No stock data available",
+                    "results": [],
                 }
-            
+
+            # Apply filters to the fetched data
             filtered_results = self._apply_filters(results, parsed_query)
-            
-            # Add analysis for each result if it's a small set
-            if len(filtered_results) <= 5:
-                analyzed_results = []
-                for stock in filtered_results:
-                    analyzed_stock = await self._analyze_stock(stock)
-                    analyzed_results.append(analyzed_stock)
-                filtered_results = analyzed_results
-            
+
+            # Apply analysis to **all filtered results**
+            analyzed_results = [await self._analyze_stock(stock) for stock in filtered_results]
+
+            # Sort the results if sorting criteria are specified
             if parsed_query.get("sort_by"):
-                filtered_results = self._sort_results(filtered_results, parsed_query)
-            
+                analyzed_results = self._sort_results(analyzed_results, parsed_query)
+
             response = {
                 "query": query,
                 "interpreted_as": parsed_query.get("description", ""),
-                "results_count": len(filtered_results),
-                "results": filtered_results[:10]
+                "results_count": len(analyzed_results),
+                "results": analyzed_results[:10],  # Limit to top 10 results
             }
-            
-            logger.info(f"Found {len(filtered_results)} matching stocks")
+
+            logger.info(f"Query processed successfully with {len(analyzed_results)} results.")
             return response
 
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
-            return {
-                "error": f"Failed to process query: {str(e)}",
-                "query": query,
-                "results": []
-            }
+            return {"error": str(e), "query": query, "results": []}
+
+
     async def _fetch_stock_data(self) -> List[Dict[str, Any]]:
         """Fetch live stock data and merge with static information"""
         results = []
@@ -141,51 +135,87 @@ class QueryProcessor:
         
         return results
     async def _analyze_stock(self, stock_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze a single stock and provide insights"""
+        """Analyze a single stock and provide insights."""
         try:
-            prompt = f"""
-            Analyze this stock data and provide key insights:
-            Symbol: {stock_data['symbol']}
-            Name: {stock_data.get('name', 'Unknown')}
-            Sector: {stock_data.get('sector', 'Unknown')}
-            Industry: {stock_data.get('industry', 'Unknown')}
-            Current Price: ${stock_data['current_price']}
-            Daily Change: {stock_data['daily_change_percent']}%
-            Market Cap: {stock_data['market_cap_formatted']}
-            Volume: {stock_data['volume']}
-            Day Range: ${stock_data['day_low']} - ${stock_data['day_high']}
+            prompt = (
+                f"Analyze this stock data and provide key insights:\n"
+                f"Symbol: {stock_data['symbol']}\n"
+                f"Name: {stock_data.get('name', 'Unknown')}\n"
+                f"Sector: {stock_data.get('sector', 'Unknown')}\n"
+                f"Industry: {stock_data.get('industry', 'Unknown')}\n"
+                f"Current Price: ${stock_data['current_price']}\n"
+                f"Daily Change: {stock_data['daily_change_percent']}%\n"
+                f"Market Cap: {stock_data['market_cap_formatted']}\n"
+                f"Volume: {stock_data['volume']}\n"
+                f"Day Range: ${stock_data['day_low']} - ${stock_data['day_high']}\n\n"
+                "Return a JSON object with these fields:\n"
+                "{\n"
+                '  "performance_summary": "A concise analysis of today\'s performance including price movement and context",\n'
+                '  "trading_volume_analysis": "Analysis of the trading volume and what it indicates",\n'
+                '  "technical_signals": "Key technical indicators based on price position in day range",\n'
+                '  "market_sentiment": "Overall market sentiment and recommendation",\n'
+                '  "key_metrics": {\n'
+                '    "price_strength": "strong|neutral|weak",\n'
+                '    "volume_signal": "high|normal|low",\n'
+                '    "trend": "bullish|bearish|neutral",\n'
+                '    "volatility": "high|normal|low"\n'
+                "  }\n"
+                "}\n\n"
+                "Keep each analysis field under 100 characters for concise display."
+            )
 
-            Return a JSON object with these fields:
-            {
-                "performance_summary": "A concise analysis of today's performance including price movement and context",
-                "trading_volume_analysis": "Analysis of the trading volume and what it indicates",
-                "technical_signals": "Key technical indicators based on price position in day range",
-                "market_sentiment": "Overall market sentiment and recommendation",
+            # Send the request to the LLM service
+            response = await self.llm_service.process_query(prompt)
+
+            # Log and validate response
+            logger.debug(f"AI Response for {stock_data['symbol']}: {response}")
+
+            if isinstance(response, str):
+                response = json.loads(response)
+
+            # Ensure response contains expected fields
+            if not isinstance(response, dict) or "key_metrics" not in response:
+                raise ValueError(f"Invalid AI response format for {stock_data['symbol']}: {response}")
+
+            # Add analysis to stock data
+            stock_data["analysis"] = {
+                "performance_summary": response.get("performance_summary", "No data available"),
+                "trading_volume_analysis": response.get("trading_volume_analysis", "No data available"),
+                "technical_signals": response.get("technical_signals", "No data available"),
+                "market_sentiment": response.get("market_sentiment", "No data available"),
                 "key_metrics": {
-                    "price_strength": "strong|neutral|weak",
-                    "volume_signal": "high|normal|low",
-                    "trend": "bullish|bearish|neutral",
-                    "volatility": "high|normal|low"
-                }
+                    "price_strength": response.get("key_metrics", {}).get("price_strength", "N/A"),
+                    "volume_signal": response.get("key_metrics", {}).get("volume_signal", "N/A"),
+                    "trend": response.get("key_metrics", {}).get("trend", "N/A"),
+                    "volatility": response.get("key_metrics", {}).get("volatility", "N/A"),
+                },
             }
-            
-            Keep each analysis field under 100 characters for concise display.
-            """
-            
-            analysis = await self.llm_service.process_query(prompt)
-            if isinstance(analysis, str):
-                analysis = json.loads(analysis)
-                
-            stock_data['analysis'] = analysis
             return stock_data
+
         except Exception as e:
-            logger.error(f"Analysis failed: {str(e)}")
+            logger.error(f"Analysis failed for {stock_data['symbol']}: {e}")
+            stock_data["analysis"] = {
+                "performance_summary": "Analysis failed",
+                "trading_volume_analysis": "Analysis failed",
+                "technical_signals": "Analysis failed",
+                "market_sentiment": "Analysis failed",
+                "key_metrics": {
+                    "price_strength": "N/A",
+                    "volume_signal": "N/A",
+                    "trend": "N/A",
+                    "volatility": "N/A",
+                },
+            }
             return stock_data
+
+
+
+
     async def _parse_query(self, query: str) -> Dict[str, Any]:
-        """Parse natural language query into structured format"""
+        """Parse natural language query into structured format with advanced fallback logic."""
         query_lower = query.lower()
-        
-        # Common keywords mapping
+
+        # Sector and industry keywords
         sector_keywords = {
             "tech": "Technology",
             "technology": "Technology",
@@ -194,57 +224,53 @@ class QueryProcessor:
             "energy": "Energy",
             "real estate": "Real Estate"
         }
-        
+
         industry_keywords = {
             "semiconductor": "Semiconductors",
             "software": "Software",
             "banking": "Banking",
             "data center": "Data Centers"
         }
-        
+
         try:
-            # Try LLM parsing first
+            # Attempt advanced LLM parsing
             prompt = f"""
-            Parse the following stock research query into structured format.
+            Parse the following stock research query into structured JSON format:
             Query: {query}
             
-            Return JSON with these fields:
+            Fields to return:
             - sectors: list of relevant sectors
+            - industries: list of relevant industries
             - market_cap_min: minimum market cap in billions (if mentioned)
             - market_cap_max: maximum market cap in billions (if mentioned)
             - volume_min: minimum trading volume (if mentioned)
             - keywords: list of key terms to match
-            - sort_by: what to sort by (market_cap, volume, etc)
+            - sort_by: what to sort by (market_cap, volume, etc.)
             - sort_order: asc or desc
-            - description: human readable interpretation
+            - description: human-readable interpretation of the query
             """
-            
             response = await self.llm_service.process_query(prompt)
-            if isinstance(response, dict):
-                return response
-            return json.loads(response)
-            
+            logger.debug(f"LLM parsed response: {response}")
+            return json.loads(response) if isinstance(response, str) else response
+
         except Exception as e:
-            logger.warning(f"LLM parsing failed, using fallback: {str(e)}")
-            
-            # Enhanced fallback parsing
-            sectors = []
-            for keyword, sector in sector_keywords.items():
-                if keyword in query_lower:
-                    sectors.append(sector)
-            
-            industries = []
-            for keyword, industry in industry_keywords.items():
-                if keyword in query_lower:
-                    industries.append(industry)
-            
-            # Default response
+            logger.warning(f"LLM parsing failed. Falling back to static parsing: {str(e)}")
+
+            # Fallback static parsing logic
+            sectors = [sector_keywords[k] for k in sector_keywords if k in query_lower]
+            industries = [industry_keywords[k] for k in industry_keywords if k in query_lower]
+
+            # Extract possible keywords
+            keywords = query_lower.split()
+
+            # Default response with parsed components
             return {
                 "sectors": sectors,
                 "industries": industries,
-                "keywords": query_lower.split(),
+                "keywords": keywords,
                 "description": f"Searching for stocks in sectors: {', '.join(sectors) or 'all'}"
             }
+
 
     def _apply_filters(self, stocks: List[Dict], criteria: Dict) -> List[Dict]:
         """Apply all filters to stock list"""

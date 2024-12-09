@@ -1,13 +1,13 @@
-# src/services/llm_service.py
 import groq
 from src.config import Config
+import asyncio
 
 class LLMService:
     def __init__(self):
         self.client = groq.Groq(
             api_key=Config.GROQ_API_KEY
         )
-    
+
     async def process_query(self, query: str):
         system_prompt = """You are an expert at providing answers about stocks. 
         Please analyze the following query and extract relevant search criteria.
@@ -21,7 +21,9 @@ class LLMService:
         """
         
         try:
-            completion = await self.client.chat.completions.create(
+            # Ensure the API call supports async or run it in a separate thread if sync
+            completion = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model="mixtral-8x7b-32768",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -29,9 +31,11 @@ class LLMService:
                 ]
             )
             
+            # Return the content from the response
             return completion.choices[0].message.content
-            
+        
         except Exception as e:
+            # Log and return a fallback response in case of an error
             return {
                 "error": f"Error processing query: {str(e)}",
                 "keywords": query.lower().split(),

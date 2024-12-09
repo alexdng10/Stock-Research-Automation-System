@@ -12,8 +12,11 @@ from src.services.query_processor import QueryProcessor
 from src.services.parallel_processor import ParallelStockProcessor
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG,  # Change to DEBUG for verbose logging
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
 )
 # Define the Pydantic model for the search query
 class SearchQuery(BaseModel):
