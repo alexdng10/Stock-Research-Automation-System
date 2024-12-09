@@ -19,18 +19,11 @@ class ParallelStockProcessor:
         """Process a single stock with error handling and retries"""
         async with self.processing_semaphore:  # Limit concurrent processing
             try:
-                self.logger.info(f"Processing {symbol}")
-                start_time = datetime.now()
-                
-                # Get stock data
                 stock_data = await self.stock_client.get_stock_details(symbol)
                 
-                # Store in database
+                # Store in database if no error
                 if "error" not in stock_data:
                     await self.database.update_stock_data(stock_data)
-                
-                processing_time = (datetime.now() - start_time).total_seconds()
-                self.logger.info(f"Processed {symbol} in {processing_time:.2f} seconds")
                 
                 return stock_data
                 
@@ -40,48 +33,15 @@ class ParallelStockProcessor:
 
     async def process_batch(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """Process a batch of stocks in parallel"""
-        tasks = []
-        results = []
+        tasks = [self.process_stock(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Create tasks for each symbol
-        for symbol in symbols:
-            task = asyncio.create_task(self.process_stock(symbol))
-            tasks.append(task)
-        
-        # Wait for all tasks to complete
-        completed, pending = await asyncio.wait(
-            tasks,
-            return_when=asyncio.ALL_COMPLETED
-        )
-        
-        # Collect results
-        for task in completed:
-            results.append(await task)
+        # Handle any exceptions
+        processed_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                self.logger.error(f"Batch processing error: {str(result)}")
+                continue
+            processed_results.append(result)
             
-        return results
-
-    async def process_with_progress(self, symbols: List[str], batch_size: int = 10) -> Dict[str, Any]:
-        """Process all symbols in batches with progress tracking"""
-        total_batches = (len(symbols) + batch_size - 1) // batch_size
-        all_results = []
-        failed_symbols = []
-        
-        for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
-            batch_results = await self.process_batch(batch)
-            
-            # Track successes and failures
-            for result in batch_results:
-                if "error" in result:
-                    failed_symbols.append(result["symbol"])
-                else:
-                    all_results.append(result)
-            
-            self.logger.info(f"Completed batch {(i//batch_size)+1}/{total_batches}")
-        
-        return {
-            "processed_count": len(all_results),
-            "failed_count": len(failed_symbols),
-            "failed_symbols": failed_symbols,
-            "results": all_results
-        }
+        return processed_results
