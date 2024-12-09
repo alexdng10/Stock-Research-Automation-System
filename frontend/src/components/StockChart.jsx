@@ -1,4 +1,4 @@
-import { Line } from 'react-chartjs-2';
+import React from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -11,9 +11,9 @@ import {
   Filler,
   TimeScale,
 } from 'chart.js';
+import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -26,11 +26,31 @@ ChartJS.register(
   TimeScale
 );
 
-const StockChart = ({ data, isPositive }) => {
-  const lineColor = isPositive ? '#2ecc71' : '#e74c3c';
-  const gradientColor = isPositive ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)';
+const StockChart = ({ stock }) => {
+  const today = new Date();
 
-  if (!data?.labels || !data?.prices || data.labels.length === 0 || data.prices.length === 0) {
+  // Filter and validate data
+  const validData = React.useMemo(() => {
+    if (!stock?.historical_data?.dates || !stock?.historical_data?.prices) {
+      return null;
+    }
+
+    const filteredData = stock.historical_data.dates.reduce(
+      (acc, date, index) => {
+        const parsedDate = new Date(date);
+        if (!isNaN(parsedDate) && parsedDate <= today) {
+          acc.dates.push(parsedDate);
+          acc.prices.push(stock.historical_data.prices[index]);
+        }
+        return acc;
+      },
+      { dates: [], prices: [] }
+    );
+
+    return filteredData.dates.length > 0 ? filteredData : null;
+  }, [stock?.historical_data, today]);
+
+  if (!validData) {
     return (
       <div className="h-[120px] w-full mt-2 flex items-center justify-center text-[#888888] text-sm">
         No historical data available
@@ -38,12 +58,16 @@ const StockChart = ({ data, isPositive }) => {
     );
   }
 
+  const isPositive = stock.daily_change_percent > 0;
+  const lineColor = isPositive ? '#2ecc71' : '#e74c3c';
+  const gradientColor = isPositive ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)';
+
   const chartData = {
-    labels: data.labels,
+    labels: validData.dates,
     datasets: [
       {
         label: 'Price',
-        data: data.prices,
+        data: validData.prices,
         borderColor: lineColor,
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
@@ -56,11 +80,7 @@ const StockChart = ({ data, isPositive }) => {
         tension: 0.4,
         pointRadius: 0,
         pointHoverRadius: 4,
-        pointHoverBackgroundColor: lineColor,
-        pointHoverBorderColor: '#fff',
-        pointHoverBorderWidth: 2,
         borderWidth: 1.5,
-        cubicInterpolationMode: 'monotone',
       },
     ],
   };
@@ -68,14 +88,8 @@ const StockChart = ({ data, isPositive }) => {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: {
-      duration: 750,
-      easing: 'easeInOutQuart'
-    },
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
         mode: 'index',
         intersect: false,
@@ -85,29 +99,16 @@ const StockChart = ({ data, isPositive }) => {
         borderColor: 'rgba(71, 85, 105, 0.3)',
         borderWidth: 1,
         padding: 10,
-        bodyFont: {
-          family: "'JetBrains Mono', monospace",
-          size: 12,
-        },
-        titleFont: {
-          family: "'JetBrains Mono', monospace",
-          size: 12,
-          weight: 'bold',
-        },
         displayColors: false,
         callbacks: {
-          title: function(tooltipItems) {
-            const date = new Date(tooltipItems[0].label);
-            return date.toLocaleDateString('en-US', {
+          title: (items) =>
+            new Date(items[0].label).toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',
-              year: 'numeric'
-            });
-          },
-          label: function(context) {
-            return `$${context.parsed.y.toFixed(2)}`;
-          }
-        }
+              year: 'numeric',
+            }),
+          label: (context) => `$${context.parsed.y.toFixed(2)}`,
+        },
       },
     },
     scales: {
@@ -115,40 +116,25 @@ const StockChart = ({ data, isPositive }) => {
         type: 'time',
         time: {
           unit: 'month',
-          displayFormats: {
-            month: 'MMM yyyy'
-          }
+          displayFormats: { month: 'MMM yyyy' },
         },
-        display: false,
-        grid: {
-          display: false,
-        },
+        grid: { display: false },
+        ticks: { color: '#888888', font: { size: 10 } },
       },
       y: {
-        display: false,
-        grid: {
-          display: false,
+        position: 'right',
+        grid: { display: false },
+        ticks: {
+          color: '#888888',
+          font: { size: 10 },
+          callback: (value) => `$${value.toFixed(0)}`,
         },
       },
-    },
-    interaction: {
-      mode: 'nearest',
-      axis: 'x',
-      intersect: false,
-    },
-    elements: {
-      line: {
-        borderCapStyle: 'round',
-        borderJoinStyle: 'round',
-      },
-      point: {
-        hitRadius: 10,
-      }
     },
   };
 
   return (
-    <div className="h-[120px] w-full mt-2 chart-container">
+    <div className="h-[120px] w-full mt-2">
       <Line data={chartData} options={options} />
     </div>
   );

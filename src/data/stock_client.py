@@ -48,10 +48,8 @@ class StockClient:
         """Fetch historical data using yfinance download function"""
         try:
             # Calculate start and end dates
-            end_date = datetime.now()
+            end_date = datetime.now()  # Today
             start_date = end_date - timedelta(days=days)
-            
-            logger.info(f"Fetching historical data for {symbol} from {start_date.date()} to {end_date.date()}")
             
             # Use yfinance download function
             hist_data = yf.download(
@@ -63,27 +61,24 @@ class StockClient:
             )
             
             if hist_data.empty:
-                logger.warning(f"Historical data query returned empty for {symbol}")
                 return None
-                
-            logger.info(f"Retrieved {len(hist_data)} days of historical data for {symbol}")
             
-            # Convert dates and prices to lists
-            dates = [date.strftime('%Y-%m-%d') for date in hist_data.index]
-            prices = [round(float(price), 2) for price in hist_data['Close'].tolist()]
+            # Filter out any future dates and convert to lists
+            current_date = datetime.now().date()
+            dates = []
+            prices = []
             
-            # Validate data
+            for date, row in hist_data.iterrows():
+                if date.date() <= current_date:  # Only include dates up to today
+                    dates.append(date.strftime('%Y-%m-%d'))
+                    prices.append(round(float(row['Close']), 2))
+            
+            # Validate filtered data
             if not dates or not prices:
-                logger.warning(f"Historical data arrays are empty for {symbol}")
                 return None
                 
             if len(dates) != len(prices):
-                logger.warning(f"Mismatch in data lengths for {symbol}: dates={len(dates)}, prices={len(prices)}")
                 return None
-                
-            logger.info(f"Successfully processed historical data for {symbol}: {len(dates)} data points")
-            logger.info(f"Date range for {symbol}: {dates[0]} to {dates[-1]}")
-            logger.info(f"Price range for {symbol}: ${min(prices)} to ${max(prices)}")
             
             return {
                 "dates": dates,
@@ -93,7 +88,6 @@ class StockClient:
         except Exception as e:
             logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
             return None
-
     async def get_stock_details(self, symbol: str, include_historical: bool = True, days: int = 365) -> Dict[str, Any]:
         """Fetch detailed stock information from Yahoo Finance"""
         max_retries = 3
