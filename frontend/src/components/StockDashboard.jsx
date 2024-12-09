@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StockCard from './StockCard';
+import { stockAPI } from '../services/api';
 
 const StockDashboard = ({ onSearch }) => {
   const [query, setQuery] = useState('');
@@ -14,19 +15,7 @@ const StockDashboard = ({ onSearch }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:8000/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Search request failed');
-      }
-
-      const data = await response.json();
+      const data = await stockAPI.searchStocks(query);
       setResults(data.results || []);
       onSearch?.(data);
     } catch (err) {

@@ -52,7 +52,10 @@ class StockClient:
                     time.sleep(retry_delay)
                 
                 ticker = yf.Ticker(symbol)
+                # Get 2 days for current price data
                 hist = ticker.history(period="2d")
+                # Get 30 days for historical chart data
+                hist_30d = ticker.history(period="30d")
                 
                 if hist.empty:
                     print(f"No data available for {symbol}")
@@ -72,6 +75,14 @@ class StockClient:
                     "day_low": round(self._safe_convert(latest_data['Low']), 2),
                     "day_open": round(self._safe_convert(latest_data['Open']), 2)
                 }
+
+                # Add historical data for the chart
+                if not hist_30d.empty:
+                    historical_data = {
+                        "labels": [date.strftime('%Y-%m-%d') for date in hist_30d.index],
+                        "prices": [round(price, 2) for price in hist_30d['Close'].tolist()]
+                    }
+                    response["historical_data"] = historical_data
 
                 # Try to get additional info
                 try:

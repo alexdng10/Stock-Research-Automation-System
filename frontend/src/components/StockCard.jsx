@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import StockChart from './StockChart';
 
 const StockCard = ({ stock }) => {
   const [expanded, setExpanded] = useState(false);
@@ -49,7 +50,7 @@ const StockCard = ({ stock }) => {
       </div>
 
       {/* Price Information */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-2 gap-4 mb-2">
         <div>
           <div className="text-2xl font-mono">
             ${stock.current_price.toFixed(2)}
@@ -64,8 +65,11 @@ const StockCard = ({ stock }) => {
         </div>
       </div>
 
+      {/* Stock Chart */}
+      <StockChart isPositive={isPositive} data={stock.historical_data} />
+
       {/* Trading Information */}
-      <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+      <div className="grid grid-cols-2 gap-4 text-sm mb-4 mt-2">
         <div>
           <div className="text-[#666666]">Volume</div>
           <div className="font-mono">{formatNumber(stock.volume)}</div>
