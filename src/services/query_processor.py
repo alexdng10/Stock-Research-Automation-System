@@ -5,7 +5,6 @@ from src.data.stock_client import StockClient
 from typing import Dict, List, Any, Optional
 import json
 import logging
-import re
 logger = logging.getLogger(__name__)
 
 class StockInfo:
@@ -95,12 +94,11 @@ class QueryProcessor:
             # Apply filters to the fetched data
             filtered_results = self._apply_filters(results, parsed_query)
 
-            # Apply analysis to **all filtered results**
-            analyzed_results = [await self._analyze_stock(stock) for stock in filtered_results]
-
-            # Sort the results if sorting criteria are specified
-            if parsed_query.get("sort_by"):
-                analyzed_results = self._sort_results(analyzed_results, parsed_query)
+            # Apply analysis to filtered results
+            analyzed_results = []
+            for stock in filtered_results:
+                analyzed_stock = await self._analyze_stock(stock)
+                analyzed_results.append(analyzed_stock)
 
             response = {
                 "query": query,
@@ -115,7 +113,6 @@ class QueryProcessor:
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
             return {"error": str(e), "query": query, "results": []}
-
 
     async def _fetch_stock_data(self) -> List[Dict[str, Any]]:
         """Fetch live stock data and merge with static information"""
@@ -134,6 +131,7 @@ class QueryProcessor:
                 results.append(stock_data)
         
         return results
+
     async def _analyze_stock(self, stock_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze a single stock and provide insights."""
         try:
@@ -147,21 +145,7 @@ class QueryProcessor:
                 f"Daily Change: {stock_data['daily_change_percent']}%\n"
                 f"Market Cap: {stock_data['market_cap_formatted']}\n"
                 f"Volume: {stock_data['volume']}\n"
-                f"Day Range: ${stock_data['day_low']} - ${stock_data['day_high']}\n\n"
-                "Return a JSON object with these fields:\n"
-                "{\n"
-                '  "performance_summary": "A concise analysis of today\'s performance including price movement and context",\n'
-                '  "trading_volume_analysis": "Analysis of the trading volume and what it indicates",\n'
-                '  "technical_signals": "Key technical indicators based on price position in day range",\n'
-                '  "market_sentiment": "Overall market sentiment and recommendation",\n'
-                '  "key_metrics": {\n'
-                '    "price_strength": "strong|neutral|weak",\n'
-                '    "volume_signal": "high|normal|low",\n'
-                '    "trend": "bullish|bearish|neutral",\n'
-                '    "volatility": "high|normal|low"\n'
-                "  }\n"
-                "}\n\n"
-                "Keep each analysis field under 100 characters for concise display."
+                f"Day Range: ${stock_data['day_low']} - ${stock_data['day_high']}"
             )
 
             # Send the request to the LLM service
@@ -173,16 +157,16 @@ class QueryProcessor:
             if isinstance(response, str):
                 response = json.loads(response)
 
-            # Ensure response contains expected fields
-            if not isinstance(response, dict) or "key_metrics" not in response:
-                raise ValueError(f"Invalid AI response format for {stock_data['symbol']}: {response}")
+            # Check for error in response
+            if "error" in response:
+                raise ValueError(f"LLM service error: {response['error']}")
 
             # Add analysis to stock data
             stock_data["analysis"] = {
-                "performance_summary": response.get("performance_summary", "No data available"),
-                "trading_volume_analysis": response.get("trading_volume_analysis", "No data available"),
-                "technical_signals": response.get("technical_signals", "No data available"),
-                "market_sentiment": response.get("market_sentiment", "No data available"),
+                "performance_summary": response.get("performance_summary", "Analysis unavailable"),
+                "trading_volume_analysis": response.get("trading_volume_analysis", "Analysis unavailable"),
+                "technical_signals": response.get("technical_signals", "Analysis unavailable"),
+                "market_sentiment": response.get("market_sentiment", "Analysis unavailable"),
                 "key_metrics": {
                     "price_strength": response.get("key_metrics", {}).get("price_strength", "N/A"),
                     "volume_signal": response.get("key_metrics", {}).get("volume_signal", "N/A"),
@@ -208,83 +192,87 @@ class QueryProcessor:
             }
             return stock_data
 
-
-
-
     async def _parse_query(self, query: str) -> Dict[str, Any]:
-        """Parse natural language query into structured format with advanced fallback logic."""
-        query_lower = query.lower()
-
-        # Sector and industry keywords
-        sector_keywords = {
-            "tech": "Technology",
-            "technology": "Technology",
-            "finance": "Finance",
-            "financial": "Finance",
-            "energy": "Energy",
-            "real estate": "Real Estate"
-        }
-
-        industry_keywords = {
-            "semiconductor": "Semiconductors",
-            "software": "Software",
-            "banking": "Banking",
-            "data center": "Data Centers"
-        }
-
+        """Parse natural language query into structured format."""
         try:
-            # Attempt advanced LLM parsing
-            prompt = f"""
-            Parse the following stock research query into structured JSON format:
-            Query: {query}
-            
-            Fields to return:
-            - sectors: list of relevant sectors
-            - industries: list of relevant industries
-            - market_cap_min: minimum market cap in billions (if mentioned)
-            - market_cap_max: maximum market cap in billions (if mentioned)
-            - volume_min: minimum trading volume (if mentioned)
-            - keywords: list of key terms to match
-            - sort_by: what to sort by (market_cap, volume, etc.)
-            - sort_order: asc or desc
-            - description: human-readable interpretation of the query
-            """
-            response = await self.llm_service.process_query(prompt)
+            # Get structured data from LLM
+            response = await self.llm_service.process_query(query)
             logger.debug(f"LLM parsed response: {response}")
-            return json.loads(response) if isinstance(response, str) else response
+
+            # Check for error in response
+            if "error" in response:
+                raise ValueError(f"LLM service error: {response['error']}")
+
+            # Convert sectors and industries to lists if they're not already
+            sectors = response.get("sectors", [])
+            if isinstance(sectors, str):
+                sectors = [sectors]
+            
+            industries = response.get("industries", [])
+            if isinstance(industries, str):
+                industries = [industries]
+
+            # Return structured format
+            return {
+                "sectors": sectors,
+                "industries": industries,
+                "market_cap_min": response.get("market_cap_min"),
+                "market_cap_max": response.get("market_cap_max"),
+                "keywords": response.get("keywords", []),
+                "description": response.get("description", "No description available")
+            }
 
         except Exception as e:
-            logger.warning(f"LLM parsing failed. Falling back to static parsing: {str(e)}")
-
-            # Fallback static parsing logic
-            sectors = [sector_keywords[k] for k in sector_keywords if k in query_lower]
-            industries = [industry_keywords[k] for k in industry_keywords if k in query_lower]
-
-            # Extract possible keywords
+            logger.warning(f"LLM parsing failed, using basic parsing: {str(e)}")
+            
+            # Fallback to basic keyword matching
+            query_lower = query.lower()
+            sectors = []
+            industries = []
             keywords = query_lower.split()
 
-            # Default response with parsed components
+            # Basic sector detection
+            if any(word in query_lower for word in ["tech", "technology"]):
+                sectors.append("Technology")
+            if any(word in query_lower for word in ["finance", "financial", "bank"]):
+                sectors.append("Finance")
+            if "energy" in query_lower:
+                sectors.append("Energy")
+            if "real estate" in query_lower:
+                sectors.append("Real Estate")
+
+            # Basic industry detection
+            if "semiconductor" in query_lower:
+                industries.append("Semiconductors")
+            if "software" in query_lower:
+                industries.append("Software")
+            if "banking" in query_lower:
+                industries.append("Banking")
+            if "data center" in query_lower:
+                industries.append("Data Centers")
+
             return {
                 "sectors": sectors,
                 "industries": industries,
                 "keywords": keywords,
-                "description": f"Searching for stocks in sectors: {', '.join(sectors) or 'all'}"
+                "description": f"Searching for stocks matching: {query}"
             }
-
 
     def _apply_filters(self, stocks: List[Dict], criteria: Dict) -> List[Dict]:
         """Apply all filters to stock list"""
         filtered = stocks.copy()
         
-        # Sector filter
+        # Sector filter (case-insensitive)
         if criteria.get("sectors"):
+            sectors = [s.lower() for s in criteria["sectors"]]
             filtered = [s for s in filtered 
-                       if s.get("sector") in criteria["sectors"]]
+                       if s.get("sector", "").lower() in sectors]
         
-        # Industry filter
+        # Industry filter (case-insensitive)
         if criteria.get("industries"):
+            industries = [i.lower() for i in criteria["industries"]]
             filtered = [s for s in filtered 
-                       if s.get("industry") in criteria["industries"]]
+                       if s.get("industry", "").lower() in industries]
         
         # Market cap filter
         if criteria.get("market_cap_min"):

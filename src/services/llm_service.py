@@ -1,6 +1,8 @@
 import groq
 from src.config import Config
 import asyncio
+import json
+import re
 
 class LLMService:
     def __init__(self):
@@ -9,35 +11,71 @@ class LLMService:
         )
 
     async def process_query(self, query: str):
-        system_prompt = """You are an expert at providing answers about stocks. 
-        Please analyze the following query and extract relevant search criteria.
-        Return the response in this JSON format:
-        {
-            "sector": "optional sector to filter by",
-            "market_cap_min": "optional minimum market cap",
-            "keywords": ["list", "of", "keywords"],
-            "description": "human readable interpretation of the query"
-        }
-        """
-        
-        try:
-            # Ensure the API call supports async or run it in a separate thread if sync
+        if "Analyze this stock data" in query:
+            # This is a stock analysis request
             completion = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model="mixtral-8x7b-32768",
                 messages=[
-                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "system",
+                        "content": """You are a stock market expert. Analyze the given stock data and provide insights.
+                        Return a JSON object with these exact fields:
+                        {
+                            "performance_summary": "brief analysis of performance",
+                            "trading_volume_analysis": "volume analysis",
+                            "technical_signals": "technical analysis",
+                            "market_sentiment": "overall sentiment",
+                            "key_metrics": {
+                                "price_strength": "strong|neutral|weak",
+                                "volume_signal": "high|normal|low",
+                                "trend": "bullish|bearish|neutral",
+                                "volatility": "high|normal|low"
+                            }
+                        }"""
+                    },
                     {"role": "user", "content": query}
                 ]
             )
-            
-            # Return the content from the response
-            return completion.choices[0].message.content
+        else:
+            # This is a search criteria request
+            completion = await asyncio.to_thread(
+                self.client.chat.completions.create,
+                model="mixtral-8x7b-32768",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Extract search criteria from the query.
+                        Return a JSON object with these exact fields:
+                        {
+                            "sectors": ["list of sectors"],
+                            "industries": ["list of industries"],
+                            "market_cap_min": null,
+                            "market_cap_max": null,
+                            "keywords": ["key terms"],
+                            "description": "human readable interpretation"
+                        }"""
+                    },
+                    {"role": "user", "content": query}
+                ]
+            )
+
+        response = completion.choices[0].message.content.strip()
         
-        except Exception as e:
-            # Log and return a fallback response in case of an error
+        try:
+            # Try to parse as JSON directly
+            return json.loads(response)
+        except json.JSONDecodeError:
+            # If direct parsing fails, try to extract JSON object
+            matches = re.findall(r'\{.*\}', response, re.DOTALL)
+            if matches:
+                try:
+                    return json.loads(matches[0])
+                except:
+                    pass
+            
+            # If all parsing fails, return error response
             return {
-                "error": f"Error processing query: {str(e)}",
-                "keywords": query.lower().split(),
-                "description": "Failed to process query with LLM, using basic keyword search"
+                "error": "Failed to parse LLM response",
+                "raw_response": response
             }
