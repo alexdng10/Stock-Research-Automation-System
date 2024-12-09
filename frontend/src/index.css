@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: dark;
-  color: #00ff00;
-  background-color: #0a0a0a;
+  color: #2ecc71;
+  background-color: #111111;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -21,21 +21,22 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: linear-gradient(to bottom, #111111, #1a1a1a);
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: rgba(26, 26, 26, 0.5);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #333333;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -44,36 +45,42 @@ body {
 
 /* Terminal-style input */
 input {
-  background-color: #0a0a0a;
-  border: 1px solid #1a1a1a;
-  color: #00ff00;
-  font-family: 'Courier New', Courier, monospace;
-  padding: 0.5rem;
+  background-color: rgba(17, 17, 17, 0.6);
+  border: 1px solid rgba(51, 51, 51, 0.3);
+  color: #2ecc71;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
 }
 
 input:focus {
   outline: none;
-  border-color: #00ff00;
+  border-color: #2ecc71;
+  box-shadow: 0 0 0 1px rgba(46, 204, 113, 0.2);
 }
 
 input::placeholder {
-  color: #333333;
+  color: #444444;
 }
 
 /* Terminal-style button */
 button {
-  background-color: #1a1a1a;
-  border: 1px solid #333333;
-  color: #00ff00;
-  font-family: 'Courier New', Courier, monospace;
-  padding: 0.5rem 1rem;
+  background-color: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  letter-spacing: 0.025em;
 }
 
 button:hover {
-  background-color: #2a2a2a;
-  border-color: #00ff00;
+  background-color: rgba(46, 204, 113, 0.2);
+  border-color: rgba(46, 204, 113, 0.4);
 }
 
 button:disabled {
@@ -83,64 +90,94 @@ button:disabled {
 
 /* Stock card animations */
 .stock-card {
-  transition: transform 0.2s ease-in-out;
+  transition: all 0.3s ease-in-out;
+  background: rgba(17, 17, 17, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(51, 51, 51, 0.3);
+  border-radius: 8px;
 }
 
 .stock-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border-color: rgba(46, 204, 113, 0.3);
 }
 
 /* Market data styling */
 .market-data {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 0.875rem;
 }
 
 .positive {
-  color: #00ff00;
+  color: #2ecc71;
 }
 
 .negative {
-  color: #ff4444;
+  color: #e74c3c;
 }
 
 .neutral {
-  color: #666666;
+  color: #888888;
 }
 
 /* Loading animation */
 @keyframes blink {
   0% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.3; }
   100% { opacity: 1; }
 }
 
 .loading-cursor {
-  animation: blink 1s infinite;
+  animation: blink 1.2s infinite;
 }
 
 /* Chart styling */
 .chart-container {
-  background-color: #0a0a0a;
-  border: 1px solid #1a1a1a;
-  border-radius: 4px;
-  padding: 1rem;
+  background-color: rgba(17, 17, 17, 0.6);
+  border: 1px solid rgba(51, 51, 51, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  backdrop-filter: blur(8px);
 }
 
 .chart-title {
-  color: #ffd700;
+  color: #f1c40f;
   font-size: 0.875rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.025em;
 }
 
 /* Badge styling */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
-  background-color: #1a1a1a;
-  border: 1px solid #333333;
+  background-color: rgba(51, 51, 51, 0.2);
+  border: 1px solid rgba(51, 51, 51, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+/* Market Overview Panel */
+.market-overview {
+  background: rgba(17, 17, 17, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 51, 51, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.market-overview h3,
+.market-overview h4 {
+  color: #f1c40f;
+  letter-spacing: 0.025em;
+  font-size: 0.875rem;
+}
+
+.market-overview .value {
+  font-weight: 500;
+  letter-spacing: 0.025em;
 }

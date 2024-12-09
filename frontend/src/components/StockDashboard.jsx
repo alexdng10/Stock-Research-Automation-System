@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StockCard from './StockCard';
 import { stockAPI } from '../services/api';
 
@@ -7,6 +7,25 @@ const StockDashboard = ({ onSearch }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    
+    return `${String(formattedHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -27,121 +46,124 @@ const StockDashboard = ({ onSearch }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#00ff00] p-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#111111] to-[#1a1a1a] text-[#2ecc71] p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 border-b border-[#1a1a1a] pb-4">
-        <div className="flex items-center space-x-4">
-          <div className="text-sm font-mono">
-            {new Date().toLocaleTimeString()} PM
+      <div className="flex justify-between items-center mb-8 border-b border-[#333333]/30 pb-4">
+        <div className="flex items-center space-x-6">
+          <div className="text-sm font-mono text-[#888888]">
+            {formatTime(currentTime)}
           </div>
-          <div className="text-[#00ff00] font-bold">
+          <div className="text-[#2ecc71] font-bold tracking-wide">
             MARKET LIVE
           </div>
         </div>
-        <div className="text-right text-sm font-mono">
-          TERMINAL v1.0
+        <div className="text-right text-xs font-mono text-[#888888] opacity-50">
+          v1.0
         </div>
       </div>
 
       {/* Search Section */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <div className="text-[#ffd700] font-bold">
+      <div className="mb-10 max-w-4xl">
+        <div className="flex justify-between items-center mb-3">
+          <div className="text-[#f1c40f] font-bold tracking-wide text-sm">
             NATURAL LANGUAGE QUERY
           </div>
-          <div className="text-[#666666]">
+          <div className="text-[#888888] text-xs tracking-wide">
             AI-POWERED ANALYSIS
           </div>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <form onSubmit={handleSearch} className="flex gap-3">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Show me tech stocks..."
-            className="flex-1 bg-[#0a0a0a] border border-[#1a1a1a] p-2 text-[#00ff00] placeholder-[#333333] focus:outline-none focus:border-[#00ff00]"
+            className="flex-1 bg-[#111111]/60 border border-[#333333]/30 p-3 text-[#2ecc71] placeholder-[#444444] focus:outline-none focus:border-[#2ecc71]/50 rounded-lg backdrop-blur-md"
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-[#1a1a1a] text-[#00ff00] px-4 py-2 hover:bg-[#2a2a2a] transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-[#2ecc71]/10 hover:bg-[#2ecc71]/20 border border-[#2ecc71]/20 hover:border-[#2ecc71]/40 text-[#2ecc71] rounded-lg transition-all duration-200 backdrop-blur-md"
           >
-            EXECUTE
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </button>
         </form>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="mb-4 p-4 bg-[#ff000022] border border-[#ff0000] text-[#ff0000]">
+        <div className="mb-6 p-4 bg-[#e74c3c]/10 border border-[#e74c3c]/30 text-[#e74c3c] rounded-lg backdrop-blur-md">
           {error}
         </div>
       )}
 
       {/* Loading State */}
       {loading && (
-        <div className="text-center py-4 text-[#00ff00]">
+        <div className="text-center py-6 text-[#2ecc71]">
+          <div className="loading-cursor inline-block mr-2">▋</div>
           Processing query...
         </div>
       )}
 
       {/* Results Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {results.map((stock, index) => (
           <StockCard key={`${stock.symbol}-${index}`} stock={stock} />
         ))}
       </div>
 
       {/* Market Overview */}
-      <div className="fixed top-4 right-4 w-64 bg-[#0a0a0a] border border-[#1a1a1a] p-4">
-        <h3 className="text-[#ffd700] font-bold mb-4">MARKET OVERVIEW</h3>
+      <div className="fixed top-6 right-6 w-72 market-overview p-5">
+        <h3 className="font-bold mb-5 tracking-wide">MARKET OVERVIEW</h3>
         
         {/* Market Indices */}
-        <div className="space-y-2 mb-4">
-          <div className="flex justify-between">
-            <span>S&P 500</span>
-            <span className="text-[#00ff00]">+1.23%</span>
+        <div className="space-y-3 mb-6">
+          <div className="flex justify-between items-center">
+            <span className="text-[#888888]">S&P 500</span>
+            <span className="value positive">+1.23%</span>
           </div>
-          <div className="flex justify-between">
-            <span>NASDAQ</span>
-            <span className="text-[#00ff00]">+1.45%</span>
+          <div className="flex justify-between items-center">
+            <span className="text-[#888888]">NASDAQ</span>
+            <span className="value positive">+1.45%</span>
           </div>
-          <div className="flex justify-between">
-            <span>DOW</span>
-            <span className="text-[#ff4444]">-0.32%</span>
+          <div className="flex justify-between items-center">
+            <span className="text-[#888888]">DOW</span>
+            <span className="value negative">-0.32%</span>
           </div>
-          <div className="flex justify-between">
-            <span>VIX</span>
-            <span>14.22</span>
+          <div className="flex justify-between items-center">
+            <span className="text-[#888888]">VIX</span>
+            <span className="value neutral">14.22</span>
           </div>
         </div>
 
         {/* Top Gainers */}
-        <div className="mb-4">
-          <h4 className="text-[#ffd700] mb-2">TOP GAINERS</h4>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span>AAPL</span>
-              <span className="text-[#00ff00]">+3.45%</span>
+        <div className="mb-6">
+          <h4 className="mb-3 tracking-wide">TOP GAINERS</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[#888888]">AAPL</span>
+              <span className="value positive">+3.45%</span>
             </div>
-            <div className="flex justify-between">
-              <span>MSFT</span>
-              <span className="text-[#00ff00]">+2.78%</span>
+            <div className="flex justify-between items-center">
+              <span className="text-[#888888]">MSFT</span>
+              <span className="value positive">+2.78%</span>
             </div>
           </div>
         </div>
 
         {/* Top Losers */}
         <div>
-          <h4 className="text-[#ffd700] mb-2">TOP LOSERS</h4>
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span>META</span>
-              <span className="text-[#ff4444]">-2.12%</span>
+          <h4 className="mb-3 tracking-wide">TOP LOSERS</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[#888888]">META</span>
+              <span className="value negative">-2.12%</span>
             </div>
-            <div className="flex justify-between">
-              <span>NFLX</span>
-              <span className="text-[#ff4444]">-1.89%</span>
+            <div className="flex justify-between items-center">
+              <span className="text-[#888888]">NFLX</span>
+              <span className="value negative">-1.89%</span>
             </div>
           </div>
         </div>
