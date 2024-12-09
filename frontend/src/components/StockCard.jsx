@@ -16,6 +16,60 @@ const StockCard = ({ stock }) => {
     return num.toFixed(2);
   };
 
+  // Format historical data for the chart with proper date parsing
+  console.log('Stock historical data:', stock.historical_data);
+  const chartData = (() => {
+    if (!stock.historical_data?.dates || !stock.historical_data?.prices) {
+      console.log('Missing historical data arrays');
+      return null;
+    }
+
+    if (!Array.isArray(stock.historical_data.dates) || !Array.isArray(stock.historical_data.prices)) {
+      console.log('Historical data is not in array format');
+      return null;
+    }
+
+    if (stock.historical_data.dates.length === 0 || stock.historical_data.prices.length === 0) {
+      console.log('Historical data arrays are empty');
+      return null;
+    }
+
+    try {
+      // Parse dates and ensure they're valid
+      const parsedDates = stock.historical_data.dates.map(dateStr => {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          console.error(`Invalid date string: ${dateStr}`);
+          return null;
+        }
+        return date;
+      });
+
+      // Filter out any null dates and their corresponding prices
+      const validData = parsedDates.reduce((acc, date, index) => {
+        if (date !== null) {
+          acc.dates.push(date);
+          acc.prices.push(stock.historical_data.prices[index]);
+        }
+        return acc;
+      }, { dates: [], prices: [] });
+
+      if (validData.dates.length === 0) {
+        console.log('No valid dates after parsing');
+        return null;
+      }
+
+      return {
+        labels: validData.dates,
+        prices: validData.prices
+      };
+    } catch (error) {
+      console.error('Error formatting chart data:', error);
+      return null;
+    }
+  })();
+  console.log('Formatted chart data:', chartData);
+
   const renderMetricBadge = (metric, value) => {
     let colorClass = 'text-[#94a3b8] border-[#475569]/30 bg-[#475569]/10';
     if (value === 'strong' || value === 'high' || value === 'bullish') {
@@ -33,7 +87,7 @@ const StockCard = ({ stock }) => {
   };
 
   return (
-    <div className="stock-card">
+    <div className="stock-card bg-[#1a1a1a]/50 border border-[#333333]/30 rounded-lg backdrop-blur-md">
       {/* Header */}
       <div className="flex justify-between items-start mb-6 p-4">
         <div>
@@ -71,7 +125,7 @@ const StockCard = ({ stock }) => {
 
       {/* Stock Chart */}
       <div className="px-4">
-        <StockChart isPositive={isPositive} data={stock.historical_data} />
+        <StockChart isPositive={isPositive} data={chartData} />
       </div>
 
       {/* Trading Information */}

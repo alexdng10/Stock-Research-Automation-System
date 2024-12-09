@@ -31,17 +31,49 @@ const StockDashboard = ({ onSearch }) => {
     e.preventDefault();
     if (!query.trim()) return;
 
+    window.console.log('Starting search with query:', query);
+
     try {
       setLoading(true);
       setError(null);
-      const data = await stockAPI.searchStocks(query);
-      setResults(data.results || []);
+      setResults([]); // Clear previous results
+
+      // Wrap API call in try-catch to catch any network errors
+      let data;
+      try {
+        window.console.log('Making API call...');
+        data = await stockAPI.searchStocks(query);
+        window.console.log('API response received:', data);
+      } catch (apiError) {
+        window.console.error('API call failed:', apiError);
+        throw new Error(`API call failed: ${apiError.message}`);
+      }
+
+      if (!data) {
+        window.console.error('No data received from API');
+        throw new Error('No response from server');
+      }
+
+      if (data.error) {
+        window.console.error('API returned error:', data.error);
+        throw new Error(data.error);
+      }
+
+      if (!data.results || !Array.isArray(data.results)) {
+        window.console.error('Invalid response format:', data);
+        throw new Error('Invalid response format from server');
+      }
+
+      window.console.log('Setting results:', data.results);
+      setResults(data.results);
       onSearch?.(data);
+
     } catch (err) {
-      console.error('Search error:', err);
-      setError('Failed to perform search. Please try again.');
+      window.console.error('Search error:', err);
+      setError(err.message || 'Failed to perform search. Please try again.');
     } finally {
       setLoading(false);
+      window.console.log('Search completed');
     }
   };
 
@@ -63,7 +95,7 @@ const StockDashboard = ({ onSearch }) => {
       </div>
 
       {/* Search Section */}
-      <div className="mb-10 max-w-4xl">
+      <div className="mb-10 max-w-4xl relative z-50">
         <div className="flex justify-between items-center mb-3">
           <div className="text-[#f1c40f] font-bold tracking-wide text-sm">
             NATURAL LANGUAGE QUERY
@@ -72,18 +104,18 @@ const StockDashboard = ({ onSearch }) => {
             AI-POWERED ANALYSIS
           </div>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-3">
+        <form onSubmit={handleSearch} className="flex gap-3 relative">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Show me tech stocks..."
-            className="flex-1 bg-[#111111]/60 border border-[#333333]/30 p-3 text-[#2ecc71] placeholder-[#444444] focus:outline-none focus:border-[#2ecc71]/50 rounded-lg backdrop-blur-md"
+            placeholder="Enter a stock symbol..."
+            className="flex-1 bg-[#111111]/60 border border-[#333333]/30 p-3 text-[#2ecc71] placeholder-[#444444] focus:outline-none focus:border-[#2ecc71]/50 rounded-lg backdrop-blur-md relative z-10"
           />
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-[#2ecc71]/10 hover:bg-[#2ecc71]/20 border border-[#2ecc71]/20 hover:border-[#2ecc71]/40 text-[#2ecc71] rounded-lg transition-all duration-200 backdrop-blur-md"
+            className="px-6 py-3 bg-[#2ecc71]/10 hover:bg-[#2ecc71]/20 border border-[#2ecc71]/20 hover:border-[#2ecc71]/40 text-[#2ecc71] rounded-lg transition-all duration-200 backdrop-blur-md flex items-center justify-center relative z-10"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -109,9 +141,14 @@ const StockDashboard = ({ onSearch }) => {
 
       {/* Results Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {results.map((stock, index) => (
-          <StockCard key={`${stock.symbol}-${index}`} stock={stock} />
-        ))}
+        {results.map((stock, index) => {
+          window.console.log('Rendering stock card:', stock);
+          return (
+            <div key={`${stock.symbol}-${index}`} className="relative">
+              <StockCard stock={stock} />
+            </div>
+          );
+        })}
       </div>
 
       {/* Market Overview */}

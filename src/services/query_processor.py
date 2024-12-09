@@ -52,23 +52,42 @@ class QueryProcessor:
             "GS": StockInfo("GS", "Finance", "Investment Banking", "Goldman Sachs Group")
         }
 
-    async def process_query(self, query: str) -> Dict[str, Any]:
+    async def process_query(self, query: str, include_historical: bool = True, days: int = 365) -> Dict[str, Any]:
         """Process natural language query and return relevant stock information."""
         try:
             logger.info(f"Processing query: {query}")
+            logger.debug(f"Historical data params - include: {include_historical}, days: {days}")
 
             # Handle direct stock symbol queries
             query_upper = query.strip().upper()
             if query_upper in self.stock_universe:
-                stock_data = await self.stock_client.get_stock_details(query_upper)
+                stock_data = await self.stock_client.get_stock_details(
+                    query_upper,
+                    include_historical=include_historical,
+                    days=days
+                )
+                logger.debug(f"Raw stock data from client: {stock_data.get('historical_data', 'No historical data')}")
+                
                 if "error" not in stock_data:
                     stock_info = self.stock_universe[query_upper]
+                    # Preserve historical data before updating other fields
+                    historical_data = stock_data.get("historical_data")
+                    logger.debug(f"Historical data before update: {historical_data}")
+                    
                     stock_data.update({
                         "name": stock_info.name,
                         "sector": stock_info.sector,
                         "industry": stock_info.industry,
                     })
+                    
+                    # Restore historical data after update
+                    if historical_data:
+                        stock_data["historical_data"] = historical_data
+                        logger.debug(f"Historical data after update: {stock_data['historical_data']}")
+                    
                     analyzed_stock = await self._analyze_stock(stock_data)
+                    logger.debug(f"Final historical data: {analyzed_stock.get('historical_data', 'No historical data')}")
+                    
                     return {
                         "query": query,
                         "interpreted_as": f"Detailed analysis of {query_upper}",
@@ -81,7 +100,7 @@ class QueryProcessor:
             logger.debug(f"Parsed query: {parsed_query}")
 
             # Fetch stock data from static and live sources
-            results = await self._fetch_stock_data()
+            results = await self._fetch_stock_data(include_historical=include_historical, days=days)
 
             if not results:
                 logger.warning("No stock data available at the moment.")
@@ -97,7 +116,17 @@ class QueryProcessor:
             # Apply analysis to filtered results
             analyzed_results = []
             for stock in filtered_results:
+                # Preserve historical data before analysis
+                historical_data = stock.get("historical_data")
+                logger.debug(f"Historical data before analysis for {stock['symbol']}: {historical_data}")
+                
                 analyzed_stock = await self._analyze_stock(stock)
+                
+                # Restore historical data after analysis
+                if historical_data:
+                    analyzed_stock["historical_data"] = historical_data
+                    logger.debug(f"Historical data after analysis for {stock['symbol']}: {analyzed_stock['historical_data']}")
+                
                 analyzed_results.append(analyzed_stock)
 
             response = {
@@ -114,20 +143,35 @@ class QueryProcessor:
             logger.error(f"Error processing query: {str(e)}", exc_info=True)
             return {"error": str(e), "query": query, "results": []}
 
-    async def _fetch_stock_data(self) -> List[Dict[str, Any]]:
+    async def _fetch_stock_data(self, include_historical: bool = True, days: int = 365) -> List[Dict[str, Any]]:
         """Fetch live stock data and merge with static information"""
         results = []
         
         for symbol, info in self.stock_universe.items():
-            stock_data = await self.stock_client.get_stock_details(symbol)
+            stock_data = await self.stock_client.get_stock_details(
+                symbol,
+                include_historical=include_historical,
+                days=days
+            )
+            logger.debug(f"Raw stock data for {symbol}: {stock_data.get('historical_data', 'No historical data')}")
             
             if "error" not in stock_data:
+                # Preserve historical data before merging static info
+                historical_data = stock_data.get("historical_data")
+                logger.debug(f"Historical data before merge for {symbol}: {historical_data}")
+                
                 # Merge static info with live data
                 stock_data.update({
                     "name": info.name,
                     "sector": info.sector,
                     "industry": info.industry
                 })
+                
+                # Restore historical data after merge
+                if historical_data:
+                    stock_data["historical_data"] = historical_data
+                    logger.debug(f"Historical data after merge for {symbol}: {stock_data['historical_data']}")
+                
                 results.append(stock_data)
         
         return results
@@ -135,6 +179,10 @@ class QueryProcessor:
     async def _analyze_stock(self, stock_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze a single stock and provide insights."""
         try:
+            # Preserve historical data before analysis
+            historical_data = stock_data.get("historical_data")
+            logger.debug(f"Historical data before analysis for {stock_data['symbol']}: {historical_data}")
+            
             prompt = (
                 f"Analyze this stock data and provide key insights:\n"
                 f"Symbol: {stock_data['symbol']}\n"
@@ -174,6 +222,12 @@ class QueryProcessor:
                     "volatility": response.get("key_metrics", {}).get("volatility", "N/A"),
                 },
             }
+            
+            # Restore historical data after analysis
+            if historical_data:
+                stock_data["historical_data"] = historical_data
+                logger.debug(f"Historical data after analysis for {stock_data['symbol']}: {stock_data['historical_data']}")
+                
             return stock_data
 
         except Exception as e:
@@ -190,6 +244,10 @@ class QueryProcessor:
                     "volatility": "N/A",
                 },
             }
+            # Ensure historical data is preserved even on analysis failure
+            if historical_data:
+                stock_data["historical_data"] = historical_data
+                logger.debug(f"Historical data preserved after analysis failure for {stock_data['symbol']}: {stock_data['historical_data']}")
             return stock_data
 
     async def _parse_query(self, query: str) -> Dict[str, Any]:

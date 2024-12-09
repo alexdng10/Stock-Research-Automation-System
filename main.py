@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 # Define the Pydantic model for the search query
 class SearchQuery(BaseModel):
     query: str
+    include_historical: Optional[bool] = True
+    days: Optional[int] = 365
 
 app = FastAPI(title="Stock Research Automation")
 
@@ -74,8 +76,14 @@ async def search_stocks(search_query: SearchQuery, request: Request):
     try:
         logger.info(f"Processing search query: {search_query.query}")
         logger.debug(f"Request headers: {request.headers}")
+        logger.debug(f"Include historical: {search_query.include_historical}, Days: {search_query.days}")
         
-        result = await query_processor.process_query(search_query.query)
+        # Pass historical data parameters to the query processor
+        result = await query_processor.process_query(
+            search_query.query,
+            include_historical=search_query.include_historical,
+            days=search_query.days
+        )
         logger.info(f"Search completed successfully")
         logger.debug(f"Search result: {result}")
         
@@ -88,11 +96,12 @@ async def search_stocks(search_query: SearchQuery, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/stocks/{symbol}")
-async def get_stock_info(symbol: str):
+async def get_stock_info(symbol: str, include_historical: Optional[bool] = True, days: Optional[int] = 365):
     """Get detailed information about a specific stock"""
     try:
         logger.info(f"Fetching stock info for symbol: {symbol}")
-        result = await stock_client.get_stock_details(symbol)
+        logger.debug(f"Include historical: {include_historical}, Days: {days}")
+        result = await stock_client.get_stock_details(symbol, include_historical=include_historical, days=days)
         logger.info(f"Successfully retrieved stock info for {symbol}")
         return result
     except Exception as e:

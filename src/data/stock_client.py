@@ -4,8 +4,12 @@ import yfinance as yf
 from src.config import Config
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, List, Any, Optional
 import time
+import logging
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 class StockClient:
     def __init__(self):
@@ -40,7 +44,57 @@ class StockClient:
             return f"${market_cap/1e6:.2f}M"
         return f"${market_cap:.2f}"
 
-    async def get_stock_details(self, symbol: str) -> Dict[str, Any]:
+    def _get_historical_data(self, symbol: str, days: int = 365) -> Optional[Dict[str, List]]:
+        """Fetch historical data using yfinance download function"""
+        try:
+            # Calculate start and end dates
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            logger.info(f"Fetching historical data for {symbol} from {start_date.date()} to {end_date.date()}")
+            
+            # Use yfinance download function
+            hist_data = yf.download(
+                symbol,
+                start=start_date.strftime('%Y-%m-%d'),
+                end=end_date.strftime('%Y-%m-%d'),
+                progress=False,
+                show_errors=False
+            )
+            
+            if hist_data.empty:
+                logger.warning(f"Historical data query returned empty for {symbol}")
+                return None
+                
+            logger.info(f"Retrieved {len(hist_data)} days of historical data for {symbol}")
+            
+            # Convert dates and prices to lists
+            dates = [date.strftime('%Y-%m-%d') for date in hist_data.index]
+            prices = [round(float(price), 2) for price in hist_data['Close'].tolist()]
+            
+            # Validate data
+            if not dates or not prices:
+                logger.warning(f"Historical data arrays are empty for {symbol}")
+                return None
+                
+            if len(dates) != len(prices):
+                logger.warning(f"Mismatch in data lengths for {symbol}: dates={len(dates)}, prices={len(prices)}")
+                return None
+                
+            logger.info(f"Successfully processed historical data for {symbol}: {len(dates)} data points")
+            logger.info(f"Date range for {symbol}: {dates[0]} to {dates[-1]}")
+            logger.info(f"Price range for {symbol}: ${min(prices)} to ${max(prices)}")
+            
+            return {
+                "dates": dates,
+                "prices": prices
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
+            return None
+
+    async def get_stock_details(self, symbol: str, include_historical: bool = True, days: int = 365) -> Dict[str, Any]:
         """Fetch detailed stock information from Yahoo Finance"""
         max_retries = 3
         retry_delay = 0.5  # seconds
@@ -51,14 +105,13 @@ class StockClient:
                 if attempt > 0:
                     time.sleep(retry_delay)
                 
+                logger.info(f"Fetching data for {symbol}")
                 ticker = yf.Ticker(symbol)
-                # Get 2 days for current price data
+
+                # Get current price data (2 days for calculating daily change)
                 hist = ticker.history(period="2d")
-                # Get 30 days for historical chart data
-                hist_30d = ticker.history(period="30d")
-                
                 if hist.empty:
-                    print(f"No data available for {symbol}")
+                    logger.warning(f"No current price data available for {symbol}")
                     return {
                         "error": f"No data available for {symbol}",
                         "symbol": symbol
@@ -67,6 +120,7 @@ class StockClient:
                 # Get the most recent day's data
                 latest_data = hist.iloc[-1]
                 
+                # Build base response
                 response = {
                     "symbol": symbol,
                     "current_price": round(self._safe_convert(latest_data['Close']), 2),
@@ -76,13 +130,14 @@ class StockClient:
                     "day_open": round(self._safe_convert(latest_data['Open']), 2)
                 }
 
-                # Add historical data for the chart
-                if not hist_30d.empty:
-                    historical_data = {
-                        "labels": [date.strftime('%Y-%m-%d') for date in hist_30d.index],
-                        "prices": [round(price, 2) for price in hist_30d['Close'].tolist()]
-                    }
-                    response["historical_data"] = historical_data
+                # Fetch and add historical data if requested
+                if include_historical:
+                    historical_data = self._get_historical_data(symbol, days)
+                    if historical_data:
+                        response["historical_data"] = historical_data
+                        logger.info(f"Historical data added to response for {symbol}")
+                    else:
+                        logger.warning(f"Failed to get historical data for {symbol}")
 
                 # Try to get additional info
                 try:
@@ -95,7 +150,7 @@ class StockClient:
                                 "market_cap_formatted": self._format_market_cap(market_cap)
                             })
                 except Exception as e:
-                    print(f"Error fetching additional info for {symbol}: {str(e)}")
+                    logger.error(f"Error fetching additional info for {symbol}: {str(e)}")
 
                 # Calculate daily change
                 if all(k in response for k in ['current_price', 'day_open']):
@@ -106,13 +161,22 @@ class StockClient:
                         "daily_change_percent": round(daily_change_percent, 2)
                     })
 
+                # Log the final response structure
+                logger.info(f"Response structure for {symbol}:")
+                logger.info(f"Keys in response: {list(response.keys())}")
+                if "historical_data" in response:
+                    logger.info(f"Historical data present with {len(response['historical_data']['dates'])} data points")
+                else:
+                    logger.info(f"No historical data in response for {symbol}")
+
                 return response
 
             except Exception as e:
                 if attempt == max_retries - 1:
-                    print(f"Failed to fetch data for {symbol} after {max_retries} attempts: {str(e)}")
+                    logger.error(f"Failed to fetch data for {symbol} after {max_retries} attempts: {str(e)}")
                     return {
                         "error": f"Failed to fetch data for {symbol}",
                         "symbol": symbol
                     }
+                logger.warning(f"Attempt {attempt + 1} failed for {symbol}: {str(e)}")
                 continue
