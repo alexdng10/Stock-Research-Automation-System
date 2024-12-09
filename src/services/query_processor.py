@@ -152,6 +152,8 @@ class QueryProcessor:
             """
             
             response = await self.llm_service.process_query(prompt)
+            if isinstance(response, dict):
+                return response
             return json.loads(response)
             
         except Exception as e:

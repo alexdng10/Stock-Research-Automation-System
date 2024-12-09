@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search } from 'lucide-react';
 
 const StockDashboard = () => {
@@ -6,18 +6,14 @@ const StockDashboard = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState(null);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     
     setLoading(true);
     setError(null);
-    setDebugInfo(null);
     
     try {
-      console.log('Sending request with query:', query);
-      
       const response = await fetch('http://localhost:8000/search', {
         method: 'POST',
         headers: {
@@ -25,10 +21,8 @@ const StockDashboard = () => {
         },
         body: JSON.stringify({ query: query }),
       });
-
+      
       const data = await response.json();
-      console.log('Received response:', data);
-      setDebugInfo(data); // Store full response for debugging
 
       if (data.error) {
         setError(data.error);
@@ -46,7 +40,6 @@ const StockDashboard = () => {
         setError('No matching stocks found');
       }
     } catch (err) {
-      console.error('Search error:', err);
       setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
@@ -93,16 +86,6 @@ const StockDashboard = () => {
           </div>
         </div>
 
-        {/* Debug Info */}
-        {debugInfo && (
-          <div className="mt-4 p-4 bg-gray-900 rounded border border-gray-800">
-            <h3 className="text-yellow-500 mb-2">Debug Info:</h3>
-            <pre className="text-sm text-gray-400 overflow-auto">
-              {JSON.stringify(debugInfo, null, 2)}
-            </pre>
-          </div>
-        )}
-
         {/* Error Display */}
         {error && (
           <div className="mt-4 p-4 bg-red-900/20 border border-red-800 rounded">
@@ -132,6 +115,14 @@ const StockDashboard = () => {
                   <div>
                     <p className="text-gray-500 text-sm">VOLUME</p>
                     <p className="text-white">{stock.volume?.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-sm">MARKET CAP</p>
+                    <p className="text-white">{stock.market_cap_formatted}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-sm">DAY RANGE</p>
+                    <p className="text-white">${stock.day_low} - ${stock.day_high}</p>
                   </div>
                 </div>
               </div>
