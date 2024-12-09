@@ -1,12 +1,12 @@
-// frontend/src/App.jsx
-import StockDashboard from './components/StockDashboard'
+import { useState } from 'react';
+import Dashboard from './components/Dashboard';
 
 function App() {
   return (
-    <div className="App">
-      <StockDashboard />
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      <Dashboard />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

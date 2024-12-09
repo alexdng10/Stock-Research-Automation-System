@@ -1,11 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Courier New', Courier, monospace;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: dark;
+  color: #00ff00;
+  background-color: #0a0a0a;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,60 +17,130 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
+/* Terminal-style input */
+input {
+  background-color: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  color: #00ff00;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 0.5rem;
+}
+
+input:focus {
+  outline: none;
+  border-color: #00ff00;
+}
+
+input::placeholder {
+  color: #333333;
+}
+
+/* Terminal-style button */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
   background-color: #1a1a1a;
+  border: 1px solid #333333;
+  color: #00ff00;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 0.5rem 1rem;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: all 0.2s ease-in-out;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+button:hover {
+  background-color: #2a2a2a;
+  border-color: #00ff00;
 }
-/* frontend/src/index.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Stock card animations */
+.stock-card {
+  transition: transform 0.2s ease-in-out;
+}
+
+.stock-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Market data styling */
+.market-data {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.875rem;
+}
+
+.positive {
+  color: #00ff00;
+}
+
+.negative {
+  color: #ff4444;
+}
+
+.neutral {
+  color: #666666;
+}
+
+/* Loading animation */
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.loading-cursor {
+  animation: blink 1s infinite;
+}
+
+/* Chart styling */
+.chart-container {
+  background-color: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.chart-title {
+  color: #ffd700;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Badge styling */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #1a1a1a;
+  border: 1px solid #333333;
+}
