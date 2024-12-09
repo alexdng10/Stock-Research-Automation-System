@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
+import StockCard from './StockCard';
 
 const StockDashboard = () => {
   const [query, setQuery] = useState('');
@@ -93,39 +94,11 @@ const StockDashboard = () => {
           </div>
         )}
 
-        {/* Results */}
+        {/* Results Grid */}
         {results && results.length > 0 && (
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
             {results.map((stock, index) => (
-              <div key={stock.symbol || index} className="bg-[#1a1a1a] border border-gray-800 rounded p-4">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl text-yellow-500">{stock.symbol}</h3>
-                    <p className="text-gray-400 text-sm">{stock.name}</p>
-                  </div>
-                  <div className={`text-lg ${stock.daily_change_percent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {stock.daily_change_percent >= 0 ? '+' : ''}{stock.daily_change_percent}%
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-500 text-sm">PRICE</p>
-                    <p className="text-white">${stock.current_price}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-sm">VOLUME</p>
-                    <p className="text-white">{stock.volume?.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-sm">MARKET CAP</p>
-                    <p className="text-white">{stock.market_cap_formatted}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-sm">DAY RANGE</p>
-                    <p className="text-white">${stock.day_low} - ${stock.day_high}</p>
-                  </div>
-                </div>
-              </div>
+              <StockCard key={stock.symbol || index} stock={stock} />
             ))}
           </div>
         )}
