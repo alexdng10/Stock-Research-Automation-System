@@ -42,65 +42,66 @@ class StockClient:
 
     async def get_stock_details(self, symbol: str) -> Dict[str, Any]:
         """Fetch detailed stock information from Yahoo Finance"""
-        try:
-            # Create ticker with a small delay to avoid rate limiting
-            time.sleep(0.1)
-            ticker = yf.Ticker(symbol)
-            
-            # Get historical data for last 2 days to ensure we have data
-            hist = ticker.history(period="2d")
-            if hist.empty:
-                return {
-                    "error": f"No data available for {symbol}",
-                    "symbol": symbol
+        max_retries = 3
+        retry_delay = 0.5  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Add delay between attempts
+                if attempt > 0:
+                    time.sleep(retry_delay)
+                
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="2d")
+                
+                if hist.empty:
+                    print(f"No data available for {symbol}")
+                    return {
+                        "error": f"No data available for {symbol}",
+                        "symbol": symbol
+                    }
+
+                # Get the most recent day's data
+                latest_data = hist.iloc[-1]
+                
+                response = {
+                    "symbol": symbol,
+                    "current_price": round(self._safe_convert(latest_data['Close']), 2),
+                    "volume": self._safe_convert(latest_data['Volume']),
+                    "day_high": round(self._safe_convert(latest_data['High']), 2),
+                    "day_low": round(self._safe_convert(latest_data['Low']), 2),
+                    "day_open": round(self._safe_convert(latest_data['Open']), 2)
                 }
 
-            # Get the most recent day's data
-            latest_data = hist.iloc[-1]
-            
-            # Build base response with current price and volume
-            response = {
-                "symbol": symbol,
-                "current_price": round(self._safe_convert(latest_data['Close']), 2),
-                "volume": self._safe_convert(latest_data['Volume']),
-                "day_high": round(self._safe_convert(latest_data['High']), 2),
-                "day_low": round(self._safe_convert(latest_data['Low']), 2),
-                "day_open": round(self._safe_convert(latest_data['Open']), 2)
-            }
-
-            # Try to get additional info with retry
-            max_retries = 3
-            for attempt in range(max_retries):
+                # Try to get additional info
                 try:
-                    time.sleep(0.2)  # Add delay between retries
-                    info = ticker.fast_info  # Use fast_info instead of info
+                    info = ticker.fast_info
                     if info:
                         market_cap = self._safe_convert(getattr(info, 'market_cap', None))
-                        additional_info = {
-                            "market_cap": market_cap,
-                            "market_cap_formatted": self._format_market_cap(market_cap),
-                            "last_dividend": self._safe_convert(getattr(info, 'last_dividend', None)),
-                            "shares": self._safe_convert(getattr(info, 'shares', None))
-                        }
-                        response.update({k: v for k, v in additional_info.items() if v is not None})
-                    break
+                        if market_cap:
+                            response.update({
+                                "market_cap": market_cap,
+                                "market_cap_formatted": self._format_market_cap(market_cap)
+                            })
                 except Exception as e:
-                    if attempt == max_retries - 1:
-                        response["info_error"] = f"Failed to fetch additional info after {max_retries} attempts"
+                    print(f"Error fetching additional info for {symbol}: {str(e)}")
 
-            # Calculate daily change
-            if 'current_price' in response and 'day_open' in response:
-                daily_change = response['current_price'] - response['day_open']
-                daily_change_percent = (daily_change / response['day_open']) * 100
-                response.update({
-                    "daily_change": round(daily_change, 2),
-                    "daily_change_percent": round(daily_change_percent, 2)
-                })
+                # Calculate daily change
+                if all(k in response for k in ['current_price', 'day_open']):
+                    daily_change = response['current_price'] - response['day_open']
+                    daily_change_percent = (daily_change / response['day_open']) * 100
+                    response.update({
+                        "daily_change": round(daily_change, 2),
+                        "daily_change_percent": round(daily_change_percent, 2)
+                    })
 
-            return response
+                return response
 
-        except Exception as e:
-            return {
-                "error": f"Failed to fetch data for {symbol}: {str(e)}",
-                "symbol": symbol
-            }
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"Failed to fetch data for {symbol} after {max_retries} attempts: {str(e)}")
+                    return {
+                        "error": f"Failed to fetch data for {symbol}",
+                        "symbol": symbol
+                    }
+                continue
